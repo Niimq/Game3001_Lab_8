@@ -26,7 +26,7 @@ void PlayScene::Draw()
 {
 	DrawDisplayList();
 
-	if(m_isGridEnabled)
+	if (m_isGridEnabled)
 	{
 		// draws the collision bounds of each obstacle
 		for (const auto obstacle : m_pObstacles)
@@ -61,17 +61,23 @@ void PlayScene::Update()
 	// Within LOS distance...but not too close (optimum firing range)
 	m_pStarShip->GetTree()->GetRangedCombatNode()->SetIsWithinCombatRange(distance >= 200 && distance <= 350);
 
-	switch(m_LOSMode)
+	switch (m_LOSMode)
 	{
 	case LOSMode::TARGET:
 		m_checkAllNodesWithTarget(m_pTarget);
 		break;
 	case LOSMode::SHIP:
-		m_checkAllNodesWithTarget(m_pStarShip); 
+		m_checkAllNodesWithTarget(m_pStarShip);
 		break;
 	case LOSMode::BOTH:
-		m_checkAllNodesWithBoth(); 
+		m_checkAllNodesWithBoth();
 		break;
+	}
+
+	// Collision Check between TorpedoK and Target
+	for (auto torpedoK : m_pTorpedoesK)
+	{
+		CollisionManager::CircleAABBCheck(torpedoK, m_pTarget);
 	}
 
 }
@@ -105,15 +111,15 @@ void PlayScene::GetPlayerInput()
 				constexpr auto dead_zone = 10000;
 				if (EventManager::Instance().GetGameController(0)->STICK_LEFT_HORIZONTAL > dead_zone)
 				{
-					
+
 				}
 				else if (EventManager::Instance().GetGameController(0)->STICK_LEFT_HORIZONTAL < -dead_zone)
 				{
-					
+
 				}
 				else
 				{
-					
+
 				}
 			}
 		}
@@ -124,15 +130,15 @@ void PlayScene::GetPlayerInput()
 		// handle player movement with mouse and keyboard
 		if (EventManager::Instance().IsKeyDown(SDL_SCANCODE_A))
 		{
-			
+
 		}
 		else if (EventManager::Instance().IsKeyDown(SDL_SCANCODE_D))
 		{
-			
+
 		}
 		else
 		{
-			
+
 		}
 	}
 	break;
@@ -146,30 +152,30 @@ void PlayScene::GetPlayerInput()
 				if (EventManager::Instance().GetGameController(0)->STICK_LEFT_HORIZONTAL > dead_zone
 					|| EventManager::Instance().IsKeyDown(SDL_SCANCODE_D))
 				{
-					
+
 				}
 				else if (EventManager::Instance().GetGameController(0)->STICK_LEFT_HORIZONTAL < -dead_zone
 					|| EventManager::Instance().IsKeyDown(SDL_SCANCODE_A))
 				{
-					
+
 				}
 				else
 				{
-					
+
 				}
 			}
 		}
 		else if (EventManager::Instance().IsKeyDown(SDL_SCANCODE_A))
 		{
-			
+
 		}
 		else if (EventManager::Instance().IsKeyDown(SDL_SCANCODE_D))
 		{
-			
+
 		}
 		else
 		{
-			
+
 		}
 	}
 	break;
@@ -193,7 +199,16 @@ void PlayScene::GetKeyboardInput()
 		Game::Instance().ChangeSceneState(SceneState::END);
 	}
 
-	if(EventManager::Instance().KeyPressed(SDL_SCANCODE_K))
+	if (EventManager::Instance().KeyPressed(SDL_SCANCODE_F))
+	{
+		// Torpedo Will Fire Here
+		m_pTorpedoes.push_back(new Torpedo(5.0f)); // instantiate a torpedo and add it to the vector
+		m_pTorpedoes.back()->GetTransform()->position = m_pTarget->GetTransform()->position; // Set the spawn point
+		SoundManager::Instance().PlaySound("torpedo"); // Play the torpedo sound
+		AddChild(m_pTorpedoes.back(), 2); // adds the torpedo to the scene
+	}
+
+	if (EventManager::Instance().KeyPressed(SDL_SCANCODE_K))
 	{
 		m_pStarShip->TakeDamage(25); // StarShip takes damage
 		m_pStarShip->GetTree()->GetEnemyHitNode()->SetIsHit(true);
@@ -214,7 +229,7 @@ void PlayScene::BuildObstaclePool()
 {
 	std::ifstream inFile("../Assets/data/obstacles.txt");
 
-	while(!inFile.eof())
+	while (!inFile.eof())
 	{
 		std::cout << "Obstacle" << std::endl;
 		auto obstacle = new Obstacle();
@@ -242,14 +257,14 @@ void PlayScene::m_buildGrid()
 		for (int col = 0; col < Config::COL_NUM; ++col)
 		{
 			PathNode* path_node = new PathNode();
-			path_node->GetTransform()->position = 
+			path_node->GetTransform()->position =
 				glm::vec2(static_cast<float>(col) * tile_size + offset.x, static_cast<float>(row) * tile_size + offset.y);
 
 			bool keep_node = true;
 			for (auto obstacle : m_pObstacles)
 			{
 				// determine which path_nodes are inside the obstacles
-				if(CollisionManager::AABBCheck(path_node, obstacle))
+				if (CollisionManager::AABBCheck(path_node, obstacle))
 				{
 					keep_node = false;
 				}
@@ -292,11 +307,11 @@ bool PlayScene::m_checkAgentLOS(Agent* agent, DisplayObject* target_object) cons
 		std::vector<DisplayObject*> contact_list;
 		for (auto display_object : GetDisplayList())
 		{
-			if (display_object->GetType() == GameObjectType::NONE) { continue;  }
+			if (display_object->GetType() == GameObjectType::NONE) { continue; }
 
 			const auto agent_to_object_distance = Util::GetClosestEdge(agent->GetTransform()->position, display_object);
 			if (agent_to_object_distance > agent_to_range) { continue; } // target is out of range
-			if((display_object->GetType() != GameObjectType::AGENT) && (display_object->GetType() != GameObjectType::PATH_NODE) && (display_object->GetType() != GameObjectType::TARGET))
+			if ((display_object->GetType() != GameObjectType::AGENT) && (display_object->GetType() != GameObjectType::PATH_NODE) && (display_object->GetType() != GameObjectType::TARGET) && (display_object->GetType() != GameObjectType::PROJECTILE))
 			{
 				contact_list.push_back(display_object);
 			}
@@ -351,7 +366,7 @@ void PlayScene::m_clearNodes()
 	m_pGrid.clear();
 	for (const auto display_object : GetDisplayList())
 	{
-		if(display_object->GetType() == GameObjectType::PATH_NODE)
+		if (display_object->GetType() == GameObjectType::PATH_NODE)
 		{
 			RemoveChild(display_object);
 		}
@@ -361,7 +376,7 @@ void PlayScene::m_clearNodes()
 void PlayScene::Start()
 {
 	// Set GUI Title
-	m_guiTitle = "Lab 7 - Part 3";
+	m_guiTitle = "Lab 8";
 
 	// Setup a few more fields
 	m_LOSMode = LOSMode::TARGET;
@@ -380,7 +395,7 @@ void PlayScene::Start()
 	AddChild(m_pTarget, 3);
 
 	//m_pStarShip = new CloseCombatEnemy();
-	m_pStarShip = new RangedCombatEnemy();
+	m_pStarShip = new RangedCombatEnemy(this);
 	m_pStarShip->GetTransform()->position = glm::vec2(400.0f, 40.0f);
 	AddChild(m_pStarShip, 4);
 
@@ -395,6 +410,8 @@ void PlayScene::Start()
 	// Pre-load sounds
 	SoundManager::Instance().Load("../Assets/audio/yay.ogg", "yay", SoundType::SOUND_SFX);
 	SoundManager::Instance().Load("../Assets/audio/thunder.ogg", "thunder", SoundType::SOUND_SFX);
+	SoundManager::Instance().Load("../Assets/audio/torpedo.ogg", "torpedo", SoundType::SOUND_SFX);
+	SoundManager::Instance().Load("../Assets/audio/torpedo_k.ogg", "torpedo_k", SoundType::SOUND_SFX);
 
 	// Pre-load Music
 	SoundManager::Instance().Load("../Assets/audio/Klingon.mp3", "klingon", SoundType::SOUND_MUSIC);
@@ -405,6 +422,26 @@ void PlayScene::Start()
 
 	/* DO NOT REMOVE */
 	ImGuiWindowFrame::Instance().SetGuiFunction([this] { GUI_Function(); });
+}
+
+void PlayScene::SpawnEnemyTorpedo()
+{
+	// Set Spawn Point (front of the d7)
+	glm::vec2 spawn_point = m_pStarShip->GetTransform()->position + m_pStarShip->GetCurrentDirection() * 30.0f;
+
+	// Set Direction of the Torpedo (normalized - unit vector)
+	glm::vec2 torpedo_direction = Util::Normalize(m_pTarget->GetTransform()->position - spawn_point);
+
+	// Spawn the Torpedo
+	m_pTorpedoesK.push_back(new TorpedoK(5.0f, torpedo_direction)); // instantiate a torpedo and add it to the vector
+	m_pTorpedoesK.back()->GetTransform()->position = spawn_point; // Set the spawn point
+	SoundManager::Instance().PlaySound("torpedo_k"); // Play the torpedo sound
+	AddChild(m_pTorpedoesK.back(), 2); // adds the torpedo to the scene
+}
+
+Target* PlayScene::GetTarget() const
+{
+	return m_pTarget;
 }
 
 void PlayScene::GUI_Function()
@@ -436,13 +473,13 @@ void PlayScene::GUI_Function()
 	ImGui::Text("Path Node LOS");
 	ImGui::RadioButton("Target", &LOS_mode, static_cast<int>(LOSMode::TARGET)); ImGui::SameLine();
 	ImGui::RadioButton("StarShip", &LOS_mode, static_cast<int>(LOSMode::SHIP)); ImGui::SameLine();
-	ImGui::RadioButton("Both Target & StarShip", &LOS_mode, static_cast<int>(LOSMode::BOTH)); 
-	
+	ImGui::RadioButton("Both Target & StarShip", &LOS_mode, static_cast<int>(LOSMode::BOTH));
+
 	m_LOSMode = static_cast<LOSMode>(LOS_mode);
 
 	ImGui::Separator();
 
-	if(ImGui::SliderInt("Path Node LOS Distance", &m_pathNodeLOSDistance, 0, 1000))
+	if (ImGui::SliderInt("Path Node LOS Distance", &m_pathNodeLOSDistance, 0, 1000))
 	{
 		m_setPathNodeLOSDistance(m_pathNodeLOSDistance);
 	}
@@ -451,7 +488,7 @@ void PlayScene::GUI_Function()
 
 	// spaceship properties
 
-	static int shipPosition[] = { static_cast<int>(m_pStarShip->GetTransform()->position.x), static_cast<int>(m_pStarShip->GetTransform()->position.y)};
+	static int shipPosition[] = { static_cast<int>(m_pStarShip->GetTransform()->position.x), static_cast<int>(m_pStarShip->GetTransform()->position.y) };
 	if (ImGui::SliderInt2("Ship Position", shipPosition, 0, 800))
 	{
 		m_pStarShip->GetTransform()->position.x = static_cast<float>(shipPosition[0]);
@@ -467,7 +504,7 @@ void PlayScene::GUI_Function()
 
 	// Target properties
 
-	static int targetPosition[] = { static_cast<int>( m_pTarget->GetTransform()->position.x), static_cast<int>(m_pTarget->GetTransform()->position.y) };
+	static int targetPosition[] = { static_cast<int>(m_pTarget->GetTransform()->position.x), static_cast<int>(m_pTarget->GetTransform()->position.y) };
 	if (ImGui::SliderInt2("Target Position", targetPosition, 0, 800))
 	{
 		m_pTarget->GetTransform()->position.x = static_cast<float>(targetPosition[0]);
@@ -491,6 +528,6 @@ void PlayScene::GUI_Function()
 
 	ImGui::Separator();
 
-	
+
 	ImGui::End();
 }
