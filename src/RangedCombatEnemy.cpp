@@ -12,10 +12,11 @@
 #include "PatrolAction.h"
 #include "WaitBehindCoverAction.h"
 
-RangedCombatEnemy::RangedCombatEnemy() : m_maxSpeed(20.0f),
-                                         m_turnRate(5.0f), m_accelerationRate(2.0f)
+RangedCombatEnemy::RangedCombatEnemy(Scene* scene) : m_maxSpeed(20.0f),
+m_turnRate(5.0f), m_accelerationRate(2.0f),
+m_fireCounter(0), m_fireCounterMax(60), m_pScene(scene)
 {
-	TextureManager::Instance().Load("../Assets/textures/reliant_small.png","ranged_enemy");
+	TextureManager::Instance().Load("../Assets/textures/d7_small.png", "ranged_enemy");
 
 	const auto size = TextureManager::Instance().GetTextureSize("ranged_enemy");
 	SetWidth(static_cast<int>(size.x));
@@ -30,7 +31,7 @@ RangedCombatEnemy::RangedCombatEnemy() : m_maxSpeed(20.0f),
 
 	SetLOSDistance(400.0f);
 	SetLOSColour(glm::vec4(1, 0, 0, 1)); // default LOS colour is Red
-	
+
 	SetType(GameObjectType::AGENT);
 
 	// New for Lab 7
@@ -53,12 +54,12 @@ void RangedCombatEnemy::Draw()
 
 	// draw LOS
 
-	if(EventManager::Instance().IsIMGUIActive())
+	if (EventManager::Instance().IsIMGUIActive())
 	{
 		Util::DrawLine(GetTransform()->position + GetCurrentDirection() * 0.5f * static_cast<float>(GetWidth()),
 			GetMiddleLOSEndPoint(), GetLOSColour());
 	}
-	
+
 }
 
 void RangedCombatEnemy::Update()
@@ -115,10 +116,10 @@ void RangedCombatEnemy::SetAccelerationRate(const float rate)
 void RangedCombatEnemy::Seek()
 {
 	// Find Next Waypoint if within 10px of the current waypoint
-	if(Util::Distance(m_patrolPath[m_wayPoint], GetTransform()->position) < 10)
+	if (Util::Distance(m_patrolPath[m_wayPoint], GetTransform()->position) < 10)
 	{
 		// check to see if you are at the last point in the path
-		if(++m_wayPoint == m_patrolPath.size())
+		if (++m_wayPoint == m_patrolPath.size())
 		{
 			// if so...reset
 			m_wayPoint = 0;
@@ -194,7 +195,7 @@ void RangedCombatEnemy::Move()
 	GetRigidBody()->velocity = Util::Clamp(GetRigidBody()->velocity, GetMaxSpeed());
 }
 
-void RangedCombatEnemy::CheckBounds(){}
+void RangedCombatEnemy::CheckBounds() {}
 
 void RangedCombatEnemy::Reset()
 {
@@ -203,7 +204,7 @@ void RangedCombatEnemy::Reset()
 
 void RangedCombatEnemy::Patrol()
 {
-	if(GetActionState() != ActionState::PATROL)
+	if (GetActionState() != ActionState::PATROL)
 	{
 		// Initialize
 		SetActionState(ActionState::PATROL);
@@ -213,7 +214,7 @@ void RangedCombatEnemy::Patrol()
 
 void RangedCombatEnemy::MoveToPlayer()
 {
-	if(GetActionState() != ActionState::MOVE_TO_PLAYER)
+	if (GetActionState() != ActionState::MOVE_TO_PLAYER)
 	{
 		SetActionState(ActionState::MOVE_TO_PLAYER);
 	}
@@ -227,7 +228,7 @@ void RangedCombatEnemy::Flee()
 	{
 		SetActionState(ActionState::FLEE);
 	}
-	//Flee();
+	//FleeAction Algorithm
 }
 
 void RangedCombatEnemy::MoveToLOS()
@@ -269,11 +270,27 @@ void RangedCombatEnemy::WaitBehindCover()
 
 void RangedCombatEnemy::Attack()
 {
+	auto scene = dynamic_cast<PlayScene*>(m_pScene); // alias
+
 	if (GetActionState() != ActionState::ATTACK)
 	{
 		SetActionState(ActionState::ATTACK);
+
+		// initialize
+		m_fireCounter = 0;
 	}
 	// Attack Action Algorithm
+
+	// New for Lab 8
+	// Need to get the target object from Play Scene
+	glm::vec2 target_direction = Util::Normalize(scene->GetTarget()->GetTransform()->position - GetTransform()->position);
+	LookWhereIAmGoing(target_direction);
+
+	// wait for a number of frames before firing = frame delay
+	if (m_fireCounter++ % m_fireCounterMax == 0)
+	{
+		scene->SpawnEnemyTorpedo();
+	}
 }
 
 DecisionTree* RangedCombatEnemy::GetTree() const
